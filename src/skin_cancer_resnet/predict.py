@@ -5,7 +5,8 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 
-from skin_cancer_resnet.checkpoint import CLASS_NAMES, DEFAULT_MODEL_PATH, load_checkpoint
+from skin_cancer_resnet.architecture import Architecture, default_model_path
+from skin_cancer_resnet.checkpoint import CLASS_NAMES, load_checkpoint, remap_legacy_state_dict
 from skin_cancer_resnet.model import DEFAULT_BATCH_SIZE, Net, get_transforms
 
 
@@ -29,9 +30,14 @@ def collect_image_paths(paths: list[Path]) -> list[Path]:
 	return image_paths
 
 
-def load_model(model_path: Path, device: torch.device) -> Net:
-	model = Net(weights=None).to(device)
-	model.load_state_dict(load_checkpoint(model_path, device))
+def load_model(
+	model_path: Path,
+	device: torch.device,
+	architecture: Architecture | str = Architecture.RESNET18,
+) -> Net:
+	model = Net(architecture=architecture, pretrained=False).to(device)
+	state_dict = remap_legacy_state_dict(load_checkpoint(model_path, device), architecture)
+	model.load_state_dict(state_dict, strict=False)
 	model.eval()
 	return model
 
@@ -74,10 +80,16 @@ def parse_args() -> argparse.Namespace:
 		help="Image files and/or directories containing images.",
 	)
 	parser.add_argument(
+		"--architecture",
+		choices=Architecture.choices(),
+		default=Architecture.RESNET18.value,
+		help="Backbone architecture used for the checkpoint (default: resnet18).",
+	)
+	parser.add_argument(
 		"--model-path",
 		type=Path,
-		default=DEFAULT_MODEL_PATH,
-		help="Path to model weights (Safetensors).",
+		default=None,
+		help="Path to model weights (Safetensors). Defaults depend on --architecture.",
 	)
 	parser.add_argument(
 		"--batch-size",
@@ -90,13 +102,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
 	args = parse_args()
+	architecture = Architecture(args.architecture)
+	model_path = args.model_path or default_model_path(architecture)
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-	if not args.model_path.exists():
-		raise SystemExit(f"Model not found: {args.model_path}")
+	if not model_path.exists():
+		raise SystemExit(f"Model not found: {model_path}")
 
 	image_paths = collect_image_paths(args.paths)
-	model = load_model(args.model_path, device)
+	model = load_model(model_path, device, architecture=architecture)
 	results = classify_images(model, image_paths, device, args.batch_size)
 
 	for image_path, label, confidence in results:

@@ -1,11 +1,13 @@
-from typing import Callable
+from typing import Callable, cast
 
 import torch
 import torchvision.models as models
 from torch import nn, optim
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
-from torchvision.models import ResNet18_Weights
+from torchvision.models import MobileNet_V3_Small_Weights, ResNet18_Weights
+
+from skin_cancer_resnet.architecture import Architecture
 
 
 ImageBatch = tuple[torch.Tensor, torch.Tensor]
@@ -51,16 +53,43 @@ def get_transforms() -> tuple[transforms.Compose, transforms.Compose]:
 	return transform_train, transform_eval
 
 
+def _create_backbone(architecture: Architecture, pretrained: bool) -> nn.Module:
+	if architecture == Architecture.RESNET18:
+		weights = ResNet18_Weights.DEFAULT if pretrained else None
+		backbone = models.resnet18(weights=weights)
+		backbone.fc = nn.Identity()
+		return backbone
+
+	weights = MobileNet_V3_Small_Weights.DEFAULT if pretrained else None
+	backbone = models.mobilenet_v3_small(weights=weights)
+	classifier = backbone.classifier
+	last_layer = cast(nn.Linear, classifier[-1])
+	classifier[-1] = nn.Linear(last_layer.in_features, 2)
+	return backbone
+
+
+def _classifier_in_features(architecture: Architecture, backbone: nn.Module) -> int:
+	if architecture == Architecture.RESNET18:
+		return 512
+
+	classifier = cast(nn.Sequential, backbone.classifier)
+	return cast(nn.Linear, classifier[-1]).in_features
+
+
 class Net(nn.Module):
 	def __init__(
 		self,
+		architecture: Architecture | str = Architecture.RESNET18,
 		scheduler_iters: int = -1,
 		initial_lr: float = DEFAULT_LR,
-		weights: ResNet18_Weights | None = ResNet18_Weights.DEFAULT,
+		pretrained: bool = True,
 	):
 		super().__init__()
-		self._backbone = models.resnet18(weights=weights)
-		self.classifier = nn.Linear(in_features=self.classifier.in_features, out_features=2)
+		self.architecture = Architecture(architecture)
+		self._backbone = _create_backbone(self.architecture, pretrained)
+
+		if self.architecture == Architecture.RESNET18:
+			self._classifier = nn.Linear(_classifier_in_features(self.architecture, self._backbone), 2)
 
 		self.optimizer = optim.Adam(self.classifier.parameters(), lr=initial_lr, weight_decay=1e-4)
 		self.scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=scheduler_iters)
@@ -68,13 +97,16 @@ class Net(nn.Module):
 
 	@property
 	def classifier(self) -> nn.Linear:
-		return self._backbone.fc
+		if self.architecture == Architecture.RESNET18:
+			return self._classifier
 
-	@classifier.setter
-	def classifier(self, value: nn.Linear):
-		self._backbone.fc = value
+		classifier = cast(nn.Sequential, self._backbone.classifier)
+		return cast(nn.Linear, classifier[-1])
 
 	def forward(self, x: torch.Tensor) -> torch.Tensor:
+		if self.architecture == Architecture.RESNET18:
+			features = self._backbone(x)
+			return self.classifier(features)
 		return self._backbone(x)
 
 	def fit(

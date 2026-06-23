@@ -7,7 +7,8 @@ import numpy as np
 import torch
 from torchvision import datasets
 
-from skin_cancer_resnet.checkpoint import DEFAULT_MODEL_PATH, save_checkpoint
+from skin_cancer_resnet.architecture import Architecture, default_model_path
+from skin_cancer_resnet.checkpoint import save_checkpoint
 from skin_cancer_resnet.model import (
 	DEFAULT_BATCH_SIZE,
 	DEFAULT_EPOCHS,
@@ -68,23 +69,31 @@ def save_plots(
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Train ResNet18 for skin lesion classification.")
+	parser = argparse.ArgumentParser(description="Train a skin lesion classifier with transfer learning.")
 	parser.add_argument("--data-dir", type=Path, default=Path("data"), help="Dataset root directory.")
 	parser.add_argument("--epochs", type=int, default=DEFAULT_EPOCHS, help="Number of training epochs.")
 	parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE, help="Training batch size.")
 	parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Random seed.")
 	parser.add_argument("--output-dir", type=Path, default=Path("results"), help="Directory for plot output.")
 	parser.add_argument(
+		"--architecture",
+		choices=Architecture.choices(),
+		default=Architecture.RESNET18.value,
+		help="Backbone architecture to train (default: resnet18).",
+	)
+	parser.add_argument(
 		"--model-path",
 		type=Path,
-		default=DEFAULT_MODEL_PATH,
-		help="Path to save trained model weights.",
+		default=None,
+		help="Path to save trained model weights (defaults depend on --architecture).",
 	)
 	return parser.parse_args()
 
 
 def main() -> None:
 	args = parse_args()
+	architecture = Architecture(args.architecture)
+	model_path = args.model_path or default_model_path(architecture)
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 	torch.backends.cudnn.benchmark = True
 	set_seed(args.seed)
@@ -101,7 +110,7 @@ def main() -> None:
 	train_eval_loader = create_data_loader(train_eval_dataset, batch_size=args.batch_size, shuffle=False)
 	test_loader = create_data_loader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-	model = Net().to(device)
+	model = Net(architecture=architecture).to(device)
 	loss_list: list[float] = []
 	test_accuracy_list: list[float] = []
 	train_accuracy_list: list[float] = []
@@ -118,13 +127,13 @@ def main() -> None:
 			f"Train Accuracy: {train_accuracy:.4f}"
 		)
 
-	print("Starting training...")
+	print(f"Starting training with {architecture.value}...")
 	avg_loss = model.fit(device, train_loader, epochs=args.epochs, epoch_callback=epoch_callback)
 	print(f"Average loss: {avg_loss:.4f}")
 
-	args.model_path.parent.mkdir(parents=True, exist_ok=True)
-	print(f"Saving model to {args.model_path}...")
-	save_checkpoint(model.state_dict(), args.model_path)
+	model_path.parent.mkdir(parents=True, exist_ok=True)
+	print(f"Saving model to {model_path}...")
+	save_checkpoint(model.state_dict(), model_path)
 	print("Model saved.")
 
 	save_plots(args.output_dir, loss_list, test_accuracy_list, train_accuracy_list)

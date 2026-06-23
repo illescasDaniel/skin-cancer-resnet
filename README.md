@@ -1,6 +1,13 @@
 # Skin Cancer ResNet Transfer Learning
 
-Binary classification of skin lesions (benign vs malignant) using transfer learning with a pretrained ResNet18 backbone. Only the final classifier head is trained, keeping the rest of the network frozen.
+Binary classification of skin lesions (benign vs malignant) using transfer learning with a pretrained backbone. Only the final classifier head is trained, keeping the rest of the network frozen.
+
+Supported architectures:
+
+| Architecture | CLI value | Default checkpoint |
+|--------------|-----------|--------------------|
+| ResNet18 (default) | `resnet18` | `models/resnet18_skin_cancer.safetensors` |
+| MobileNetV3-Small (iOS / mobile) | `mobilenet_v3_small` | `models/mobilenet_v3_small_skin_cancer.safetensors` |
 
 **Disclaimer:** This project is for educational and research purposes only. It is not intended for clinical or diagnostic use.
 
@@ -67,7 +74,16 @@ python -m skin_cancer_resnet.train \
   --data-dir data \
   --epochs 15 \
   --output-dir results \
+  --architecture resnet18 \
   --model-path models/resnet18_skin_cancer.safetensors
+```
+
+Train the lighter MobileNetV3-Small backbone (as used in the [MalignantMolesDetector](https://github.com/illescasDaniel/MalignantMolesDetector) iOS app):
+
+```bash
+python -m skin_cancer_resnet.train \
+  --architecture mobilenet_v3_small \
+  --model-path models/mobilenet_v3_small_skin_cancer.safetensors
 ```
 
 Or use the installed CLI:
@@ -85,6 +101,7 @@ Classify one or more images (files or directories):
 ```bash
 skin-cancer-predict data/validation/IMG_4226.JPG
 skin-cancer-predict path/to/image1.jpg path/to/images/
+skin-cancer-predict --architecture mobilenet_v3_small path/to/image.jpg
 ```
 
 Or run as a module:
@@ -113,8 +130,8 @@ predictions = model.predict(inputs)
 
 ## Approach
 
-- **Backbone:** ResNet18 with ImageNet weights (`torchvision.models.resnet18`)
-- **Classifier:** Single linear layer (512 → 2), only trainable parameters
+- **Backbones:** ResNet18 or MobileNetV3-Small with ImageNet weights (`torchvision.models`)
+- **Classifier:** Single linear layer (512 or 1024 → 2), only trainable parameters
 - **Optimizer:** Adam (lr=1e-3, weight_decay=1e-4)
 - **Scheduler:** Cosine annealing over 15 epochs
 - **Batch size:** 16
@@ -135,3 +152,9 @@ pip install -e ".[dev]"
 Steps: dependency audit → Ruff → ShellCheck + shfmt → codespell → pytest → basedpyright.
 
 Individual scripts: `scripts/quality/{ruff,pyright,shellcheck,codespell,pytest}.sh`.
+
+Compare architectures (size, speed, and optional training accuracy):
+
+```bash
+python scripts/compare_architectures.py --data-dir data --epochs 5
+```
