@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from torchvision import datasets
 
+from skin_cancer_resnet.checkpoint import DEFAULT_MODEL_PATH, save_checkpoint
 from skin_cancer_resnet.model import (
 	DEFAULT_BATCH_SIZE,
 	DEFAULT_EPOCHS,
@@ -76,7 +77,7 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument(
 		"--model-path",
 		type=Path,
-		default=Path("models/resnet18_skin_cancer.pth"),
+		default=DEFAULT_MODEL_PATH,
 		help="Path to save trained model weights.",
 	)
 	return parser.parse_args()
@@ -123,7 +124,7 @@ def main() -> None:
 
 	args.model_path.parent.mkdir(parents=True, exist_ok=True)
 	print(f"Saving model to {args.model_path}...")
-	torch.save(model.state_dict(), args.model_path)
+	save_checkpoint(model.state_dict(), args.model_path)
 	print("Model saved.")
 
 	save_plots(args.output_dir, loss_list, test_accuracy_list, train_accuracy_list)

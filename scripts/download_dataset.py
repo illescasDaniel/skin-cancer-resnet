@@ -6,10 +6,10 @@ from __future__ import annotations
 import argparse
 import shutil
 import subprocess
-import sys
 import tempfile
 import zipfile
 from pathlib import Path
+
 
 DATASET_SLUG = "hasnainjaved/melanoma-skin-cancer-dataset-of-10000-images"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
@@ -26,7 +26,6 @@ def check_kaggle_credentials() -> None:
 
 
 def run_kaggle_download(target_dir: Path) -> Path:
-	archive_path = target_dir / "dataset.zip"
 	cmd = [
 		"kaggle",
 		"datasets",
@@ -59,8 +58,7 @@ def find_dataset_root(extracted_dir: Path) -> Path:
 			return path.parent
 
 	raise SystemExit(
-		"Could not locate train/ and test/ folders in the downloaded archive. "
-		"Check the dataset layout on Kaggle."
+		"Could not locate train/ and test/ folders in the downloaded archive. Check the dataset layout on Kaggle."
 	)
 
 
@@ -130,8 +128,6 @@ if __name__ == "__main__":
 	try:
 		main()
 	except FileNotFoundError:
-		raise SystemExit(
-			"The kaggle CLI was not found. Install it with: pip install kaggle"
-		) from None
+		raise SystemExit("The kaggle CLI was not found. Install it with: pip install kaggle") from None
 	except subprocess.CalledProcessError as exc:
 		raise SystemExit(f"Kaggle download failed with exit code {exc.returncode}.") from exc

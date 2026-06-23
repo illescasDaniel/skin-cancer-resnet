@@ -17,15 +17,60 @@ dependencies = [
     "torchvision",
     "matplotlib",
     "numpy",
+    "safetensors",
 ]
 
 [project.scripts]
 skin-cancer-train = "skin_cancer_resnet.train:main"
+skin-cancer-predict = "skin_cancer_resnet.predict:main"
 
 [project.optional-dependencies]
 dev = [
+    "basedpyright>=1.29",
+    "codespell",
     "kaggle",
+    "pip-audit>=2.7",
+    "pytest>=8.0",
+    "ruff",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.format]
+indent-style = "tab"
+
+[tool.ruff.lint]
+select = ["F", "I", "E", "S", "B"]
+ignore = ["E501"]
+fixable = ["ALL"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+lines-after-imports = 2
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/**" = ["S603", "S607"]
+"tests/**" = ["S101"]
+
+[tool.basedpyright]
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportAttributeAccessIssue = false
+extraPaths = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

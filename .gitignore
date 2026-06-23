@@ -33,14 +33,12 @@ docs/
 output.txt
 152_output.txt
 
-# Legacy experiment directories
-other/
-mnist_test/
+# Quality tool caches
+.ruff_cache/
+.mypy_cache/
+.basedpyright/
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Root-level artifacts from pre-refactor runs
-/main.py
-/skin_c_net_weights.pth
-/loss.png
-/test_accuracy.png
-/train_accuracy.png
-/152_*.png
+

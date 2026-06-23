@@ -3,9 +3,12 @@ from typing import Callable
 import torch
 import torchvision.models as models
 from torch import nn, optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.models import ResNet18_Weights
+
+
+ImageBatch = tuple[torch.Tensor, torch.Tensor]
 
 DEFAULT_BATCH_SIZE = 16
 DEFAULT_EPOCHS = 15
@@ -17,35 +20,46 @@ IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
 def get_transforms() -> tuple[transforms.Compose, transforms.Compose]:
-	transform_train = transforms.Compose([
-		transforms.Resize(224),
-		transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(3/4, 4/3)),
-		transforms.RandomHorizontalFlip(),
-		transforms.RandomVerticalFlip(),
-		transforms.RandomChoice([
-			transforms.RandomRotation(degrees=(0, 0), expand=True, fill=0),
-			transforms.RandomRotation(degrees=(90, 90), expand=True, fill=0),
-			transforms.RandomRotation(degrees=(180, 180), expand=True, fill=0),
-			transforms.RandomRotation(degrees=(270, 270), expand=True, fill=0),
-		]),
-		transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-		transforms.ToTensor(),
-		transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-	])
+	transform_train = transforms.Compose(
+		[
+			transforms.Resize(224),
+			transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(3 / 4, 4 / 3)),
+			transforms.RandomHorizontalFlip(),
+			transforms.RandomVerticalFlip(),
+			transforms.RandomChoice(
+				[
+					transforms.RandomRotation(degrees=(0, 0), expand=True, fill=0),
+					transforms.RandomRotation(degrees=(90, 90), expand=True, fill=0),
+					transforms.RandomRotation(degrees=(180, 180), expand=True, fill=0),
+					transforms.RandomRotation(degrees=(270, 270), expand=True, fill=0),
+				]
+			),
+			transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+			transforms.ToTensor(),
+			transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+		]
+	)
 
-	transform_eval = transforms.Compose([
-		transforms.Resize(224),
-		transforms.ToTensor(),
-		transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-	])
+	transform_eval = transforms.Compose(
+		[
+			transforms.Resize(224),
+			transforms.ToTensor(),
+			transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+		]
+	)
 
 	return transform_train, transform_eval
 
 
 class Net(nn.Module):
-	def __init__(self, scheduler_iters: int = -1, initial_lr: float = DEFAULT_LR):
+	def __init__(
+		self,
+		scheduler_iters: int = -1,
+		initial_lr: float = DEFAULT_LR,
+		weights: ResNet18_Weights | None = ResNet18_Weights.DEFAULT,
+	):
 		super().__init__()
-		self._backbone = models.resnet18(weights=ResNet18_Weights.DEFAULT)
+		self._backbone = models.resnet18(weights=weights)
 		self.classifier = nn.Linear(in_features=self.classifier.in_features, out_features=2)
 
 		self.optimizer = optim.Adam(self.classifier.parameters(), lr=initial_lr, weight_decay=1e-4)
@@ -66,7 +80,7 @@ class Net(nn.Module):
 	def fit(
 		self,
 		device: torch.device,
-		train_loader: DataLoader,
+		train_loader: DataLoader[ImageBatch],
 		epochs: int,
 		epoch_callback: Callable[[int, float], None] | None = None,
 	) -> float:
@@ -112,7 +126,7 @@ class Net(nn.Module):
 			return predicted
 
 
-def evaluate(model: Net, device: torch.device, data_loader: DataLoader) -> float:
+def evaluate(model: Net, device: torch.device, data_loader: DataLoader[ImageBatch]) -> float:
 	model.eval()
 	correct = 0
 	total = 0
@@ -126,10 +140,10 @@ def evaluate(model: Net, device: torch.device, data_loader: DataLoader) -> float
 
 
 def create_data_loader(
-	dataset: torch.utils.data.Dataset,
+	dataset: Dataset[ImageBatch],
 	batch_size: int,
 	shuffle: bool,
-) -> DataLoader:
+) -> DataLoader[ImageBatch]:
 	return DataLoader(
 		dataset,
 		batch_size=batch_size,

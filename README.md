@@ -22,14 +22,16 @@ ResNet152 was evaluated as a comparison and achieved nearly identical test accur
 |------|---------------|----------------|
 | ![Training loss](results/loss.png) | ![Test accuracy](results/test_accuracy.png) | ![Train accuracy](results/train_accuracy.png) |
 
-A pretrained checkpoint is included at [`models/resnet18_skin_cancer.pth`](models/resnet18_skin_cancer.pth).
+A pretrained checkpoint is included at [`models/resnet18_skin_cancer.safetensors`](models/resnet18_skin_cancer.safetensors).
 
 ## Project structure
 
 ```
 skin-cancer-resnet-transfer-learning/
-├── src/skin_cancer_resnet/   # Model and training code
-├── scripts/download_dataset.py
+├── src/skin_cancer_resnet/   # Model, training, and inference code
+├── scripts/
+│   ├── download_dataset.py
+│   └── quality/              # checks.sh, ruff, pyright, etc.
 ├── data/                     # Dataset (not committed)
 ├── models/                   # Trained weights
 └── results/                  # Training plots
@@ -42,7 +44,7 @@ Requires Python 3.10+ and a CUDA-capable GPU (optional; CPU works but is slower)
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 ### Download the dataset
@@ -65,7 +67,7 @@ python -m skin_cancer_resnet.train \
   --data-dir data \
   --epochs 15 \
   --output-dir results \
-  --model-path models/resnet18_skin_cancer.pth
+  --model-path models/resnet18_skin_cancer.safetensors
 ```
 
 Or use the installed CLI:
@@ -78,16 +80,33 @@ Training applies random augmentations (flips, rotations, color jitter) and evalu
 
 ## Inference
 
+Classify one or more images (files or directories):
+
+```bash
+skin-cancer-predict data/validation/IMG_4226.JPG
+skin-cancer-predict path/to/image1.jpg path/to/images/
+```
+
+Or run as a module:
+
+```bash
+python -m skin_cancer_resnet.predict data/validation/IMG_4226.JPG
+```
+
+Output is one line per image with the predicted label and confidence, e.g. `benign (62.1%)` or `malignant (87.3%)`.
+
+Programmatic usage:
+
 ```python
 import torch
-from skin_cancer_resnet import Net
+from skin_cancer_resnet import Net, load_checkpoint
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = Net().to(device)
-model.load_state_dict(torch.load("models/resnet18_skin_cancer.pth", weights_only=True))
+model = Net(weights=None).to(device)
+model.load_state_dict(load_checkpoint("models/resnet18_skin_cancer.safetensors", device))
 model.eval()
 
-# inputs: batch of preprocessed images (1, 3, 224, 224)
+# inputs: batch of preprocessed images (N, 3, 224, 224)
 predictions = model.predict(inputs)
 # 0 = benign, 1 = malignant
 ```
@@ -104,3 +123,15 @@ predictions = model.predict(inputs)
 ## License
 
 MIT — Copyright (c) 2026 Daniel Illescas Romero. See [LICENSE](LICENSE).
+
+## Quality checks
+
+```bash
+pip install -e ".[dev]"
+./scripts/quality/checks.sh          # check-only (matches CI)
+./scripts/quality/checks.sh --fix    # Ruff autofix/format + shfmt on shell scripts
+```
+
+Steps: dependency audit → Ruff → ShellCheck + shfmt → codespell → pytest → basedpyright.
+
+Individual scripts: `scripts/quality/{ruff,pyright,shellcheck,codespell,pytest}.sh`.
