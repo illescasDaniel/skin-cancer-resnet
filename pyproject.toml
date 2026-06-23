@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skin-cancer-resnet"
+version = "1.0.0"
+description = "ResNet18 transfer learning for benign vs malignant skin lesion classification"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Daniel Illescas Romero" },
+]
+dependencies = [
+    "torch",
+    "torchvision",
+    "matplotlib",
+    "numpy",
+]
+
+[project.scripts]
+skin-cancer-train = "skin_cancer_resnet.train:main"
+
+[project.optional-dependencies]
+dev = [
+    "kaggle",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

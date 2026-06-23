@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dataset (images not committed; structure preserved via .gitkeep)
+data/**
+!data/train/
+!data/train/.gitkeep
+!data/test/
+!data/test/.gitkeep
+
+# Local documentation
+docs/
+
+# Archives and logs
+*.zip
+output.txt
+152_output.txt
+
+# Legacy experiment directories
+other/
+mnist_test/
+
+# Root-level artifacts from pre-refactor runs
+/main.py
+/skin_c_net_weights.pth
+/loss.png
+/test_accuracy.png
+/train_accuracy.png
+/152_*.png
