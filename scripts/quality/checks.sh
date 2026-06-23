@@ -34,6 +34,7 @@ gate_init
 # shellcheck source=scripts/quality/internal/lib.sh
 source "${internal_dir}/lib.sh"
 lib_require_venv
+lib_activate_venv
 PYTHON="${LIB_REPO_ROOT}/.venv/bin/python"
 cd "${repo_root}" || exit
 
