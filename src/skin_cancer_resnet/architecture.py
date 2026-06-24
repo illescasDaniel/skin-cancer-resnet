@@ -16,6 +16,19 @@ DEFAULT_MODEL_PATHS: dict[Architecture, Path] = {
 	Architecture.MOBILENET_V3_SMALL: Path("models/mobilenet_v3_small_skin_cancer.safetensors"),
 }
 
+RECOMMENDED_EPOCHS: dict[Architecture, int] = {
+	Architecture.RESNET18: 15,
+	Architecture.MOBILENET_V3_SMALL: 10,
+}
+
 
 def default_model_path(architecture: Architecture | str) -> Path:
 	return DEFAULT_MODEL_PATHS[Architecture(architecture)]
+
+
+def recommended_epochs(architecture: Architecture | str) -> int:
+	return RECOMMENDED_EPOCHS[Architecture(architecture)]
+
+
+def results_dir_for(architecture: Architecture | str, base_dir: Path = Path("results")) -> Path:
+	return base_dir / Architecture(architecture).value

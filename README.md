@@ -4,32 +4,46 @@ Binary classification of skin lesions (benign vs malignant) using transfer learn
 
 Supported architectures:
 
-| Architecture | CLI value | Default checkpoint |
-|--------------|-----------|--------------------|
-| ResNet18 (default) | `resnet18` | `models/resnet18_skin_cancer.safetensors` |
-| MobileNetV3-Small (iOS / mobile) | `mobilenet_v3_small` | `models/mobilenet_v3_small_skin_cancer.safetensors` |
+| Architecture | CLI value | Recommended epochs | Default checkpoint |
+|--------------|-----------|-------------------|--------------------|
+| ResNet18 (default) | `resnet18` | 15 | `models/resnet18_skin_cancer.safetensors` |
+| MobileNetV3-Small (iOS / mobile) | `mobilenet_v3_small` | 10 | `models/mobilenet_v3_small_skin_cancer.safetensors` |
 
 **Disclaimer:** This project is for educational and research purposes only. It is not intended for clinical or diagnostic use.
 
 ## Results
 
-After 15 epochs on the [Melanoma Skin Cancer dataset](https://www.kaggle.com/datasets/hasnainjaved/melanoma-skin-cancer-dataset-of-10000-images):
+On the [Melanoma Skin Cancer dataset](https://www.kaggle.com/datasets/hasnainjaved/melanoma-skin-cancer-dataset-of-10000-images).
 
-| Metric | ResNet18 (final) | ResNet18 (best) | ResNet152 (final) |
-|--------|------------------|-----------------|-------------------|
-| Test accuracy | 84.24% | **85.30%** (epoch 11) | 84.39% |
-| Train accuracy | 86.27% | — | 86.92% |
-| Final loss | 0.3155 | — | 0.2970 |
+Saved checkpoints and the metrics reported below use the **best test-accuracy epoch** within each training run, not the final epoch. For example, with 15 epochs configured, if epoch 11 achieves the highest test accuracy, `models/resnet18_skin_cancer.safetensors` contains those weights — not the weights from epoch 15.
 
-ResNet152 was evaluated as a comparison and achieved nearly identical test accuracy with a much larger model. **ResNet18** was chosen as the final architecture for its similar performance, faster training, and smaller footprint.
+| Metric | ResNet18 | MobileNetV3-Small |
+|--------|----------|-------------------|
+| Test accuracy | **86.06%** (epoch 12) | **82.73%** (epoch 9) |
+| Train accuracy (at best epoch) | 86.80% | 86.50% |
+| Loss (at best epoch) | 0.3111 | 0.3273 |
+| Epochs trained | 15 | 10 |
+| Checkpoint size | ~45 MB | ~6 MB |
+
+ResNet152 was evaluated historically and achieved 84.39% test accuracy with a much larger model. **ResNet18** remains the best accuracy overall. **MobileNetV3-Small** trades ~2.6 percentage points of test accuracy for an ~8× smaller checkpoint and faster inference, making it a better fit for on-device deployment (as used in [MalignantMolesDetector](https://github.com/illescasDaniel/MalignantMolesDetector)).
+
+MobileNetV3 test accuracy plateaus around epoch 8–9 while train accuracy keeps climbing — a sign of **overfitting**. Training beyond ~10 epochs is unlikely to help and may hurt test performance, so 10 epochs is recommended (not 15).
 
 ### Training curves
 
+**ResNet18**
+
 | Loss | Test accuracy | Train accuracy |
 |------|---------------|----------------|
-| ![Training loss](results/loss.png) | ![Test accuracy](results/test_accuracy.png) | ![Train accuracy](results/train_accuracy.png) |
+| ![Training loss](results/resnet18/loss.png) | ![Test accuracy](results/resnet18/test_accuracy.png) | ![Train accuracy](results/resnet18/train_accuracy.png) |
 
-A pretrained checkpoint is included at [`models/resnet18_skin_cancer.safetensors`](models/resnet18_skin_cancer.safetensors).
+**MobileNetV3-Small**
+
+| Loss | Test accuracy | Train accuracy |
+|------|---------------|----------------|
+| ![Training loss](results/mobilenet_v3_small/loss.png) | ![Test accuracy](results/mobilenet_v3_small/test_accuracy.png) | ![Train accuracy](results/mobilenet_v3_small/train_accuracy.png) |
+
+Pretrained checkpoints are included at [`models/resnet18_skin_cancer.safetensors`](models/resnet18_skin_cancer.safetensors) and [`models/mobilenet_v3_small_skin_cancer.safetensors`](models/mobilenet_v3_small_skin_cancer.safetensors).
 
 ## Project structure
 
@@ -37,11 +51,12 @@ A pretrained checkpoint is included at [`models/resnet18_skin_cancer.safetensors
 skin-cancer-resnet-transfer-learning/
 ├── src/skin_cancer_resnet/   # Model, training, and inference code
 ├── scripts/
-│   ├── download_dataset.py
 │   └── quality/              # checks.sh, ruff, pyright, etc.
 ├── data/                     # Dataset (not committed)
 ├── models/                   # Trained weights
-└── results/                  # Training plots
+└── results/                  # Per-architecture plots and metrics
+    ├── resnet18/
+    └── mobilenet_v3_small/
 ```
 
 ## Setup
@@ -56,34 +71,31 @@ pip install -e ".[dev]"
 
 ### Download the dataset
 
-1. Create a [Kaggle API token](https://www.kaggle.com/settings) and save it to `~/.kaggle/kaggle.json`.
-2. Restrict permissions: `chmod 600 ~/.kaggle/kaggle.json`
-3. Install the Kaggle CLI and download the data:
-
-```bash
-pip install kaggle
-python scripts/download_dataset.py
-```
-
-This populates `data/train/` and `data/test/` with `benign/` and `malignant/` subfolders.
+Download the [Melanoma Skin Cancer dataset](https://www.kaggle.com/datasets/hasnainjaved/melanoma-skin-cancer-dataset-of-10000-images) from Kaggle (website or CLI) and extract it into `data/`. The layout is already correct: `data/train/` and `data/test/` each contain `benign/` and `malignant/` subfolders. No renaming or restructuring is required.
 
 ## Training
+
+Training runs for a configurable number of epochs (`--epochs`). If omitted, the recommended value for the architecture is used (see table above). `--epochs` only controls how long training runs; the checkpoint written to `models/{architecture}_skin_cancer.safetensors` is always from whichever epoch achieved the highest test accuracy during that run.
+
+**ResNet18** (15 epochs):
 
 ```bash
 python -m skin_cancer_resnet.train \
   --data-dir data \
-  --epochs 15 \
-  --output-dir results \
-  --architecture resnet18 \
-  --model-path models/resnet18_skin_cancer.safetensors
+  --architecture resnet18
 ```
 
-Train the lighter MobileNetV3-Small backbone (as used in the [MalignantMolesDetector](https://github.com/illescasDaniel/MalignantMolesDetector) iOS app):
+**MobileNetV3-Small** (10 epochs; as used in the [MalignantMolesDetector](https://github.com/illescasDaniel/MalignantMolesDetector) iOS app):
 
 ```bash
 python -m skin_cancer_resnet.train \
-  --architecture mobilenet_v3_small \
-  --model-path models/mobilenet_v3_small_skin_cancer.safetensors
+  --architecture mobilenet_v3_small
+```
+
+Override epochs explicitly if needed:
+
+```bash
+python -m skin_cancer_resnet.train --architecture mobilenet_v3_small --epochs 10
 ```
 
 Or use the installed CLI:
@@ -92,7 +104,7 @@ Or use the installed CLI:
 skin-cancer-train
 ```
 
-Training applies random augmentations (flips, rotations, color jitter) and evaluates on both train and test sets each epoch. Plots are saved to `results/` and weights to `models/`.
+Training applies random augmentations (flips, rotations, color jitter) and evaluates on both train and test sets each epoch. Plots and metrics are saved to `results/{architecture}/`; the best-epoch weights are saved to `models/`.
 
 ## Inference
 
@@ -116,11 +128,17 @@ Programmatic usage:
 
 ```python
 import torch
-from skin_cancer_resnet import Net, load_checkpoint
+from skin_cancer_resnet.architecture import Architecture
+from skin_cancer_resnet.checkpoint import load_checkpoint, remap_legacy_state_dict
+from skin_cancer_resnet.model import Net
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = Net(weights=None).to(device)
-model.load_state_dict(load_checkpoint("models/resnet18_skin_cancer.safetensors", device))
+model = Net(architecture=Architecture.RESNET18, pretrained=False).to(device)
+state_dict = remap_legacy_state_dict(
+    load_checkpoint("models/resnet18_skin_cancer.safetensors", device),
+    Architecture.RESNET18,
+)
+model.load_state_dict(state_dict, strict=False)
 model.eval()
 
 # inputs: batch of preprocessed images (N, 3, 224, 224)
@@ -133,7 +151,7 @@ predictions = model.predict(inputs)
 - **Backbones:** ResNet18 or MobileNetV3-Small with ImageNet weights (`torchvision.models`)
 - **Classifier:** Single linear layer (512 or 1024 → 2), only trainable parameters
 - **Optimizer:** Adam (lr=1e-3, weight_decay=1e-4)
-- **Scheduler:** Cosine annealing over 15 epochs
+- **Scheduler:** Cosine annealing over the training epochs
 - **Batch size:** 16
 - **Input size:** 224×224, ImageNet normalization
 
@@ -152,9 +170,3 @@ pip install -e ".[dev]"
 Steps: dependency audit → Ruff → ShellCheck + shfmt → codespell → pytest → basedpyright.
 
 Individual scripts: `scripts/quality/{ruff,pyright,shellcheck,codespell,pytest}.sh`.
-
-Compare architectures (size, speed, and optional training accuracy):
-
-```bash
-python scripts/compare_architectures.py --data-dir data --epochs 5
-```

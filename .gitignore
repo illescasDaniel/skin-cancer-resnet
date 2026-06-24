@@ -24,7 +24,6 @@ data/**
 !data/train/.gitkeep
 !data/test/
 !data/test/.gitkeep
-data_mini/
 models/*_comparison.safetensors
 
 # Local documentation
