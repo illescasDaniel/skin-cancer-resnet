@@ -2,11 +2,20 @@ from pathlib import Path
 
 import torch
 
+from skin_cancer_resnet.architecture import Architecture, default_model_path, recommended_epochs, results_dir_for
 from skin_cancer_resnet.checkpoint import CLASS_NAMES, load_checkpoint, save_checkpoint
 
 
 def test_class_names() -> None:
 	assert CLASS_NAMES == ("benign", "malignant")
+
+
+def test_default_model_paths() -> None:
+	assert default_model_path(Architecture.RESNET18).name == "resnet18_skin_cancer.safetensors"
+	assert default_model_path(Architecture.MOBILENET_V3_SMALL).name == "mobilenet_v3_small_skin_cancer.safetensors"
+	assert recommended_epochs(Architecture.RESNET18) == 15
+	assert recommended_epochs(Architecture.MOBILENET_V3_SMALL) == 10
+	assert results_dir_for(Architecture.RESNET18) == Path("results/resnet18")
 
 
 def test_checkpoint_roundtrip(tmp_path: Path) -> None:
