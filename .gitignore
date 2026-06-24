@@ -26,6 +26,12 @@ data/**
 !data/test/.gitkeep
 models/*_comparison.safetensors
 
+# Experiment runs (outputs and ad-hoc sweep configs; only example.json is tracked)
+results/experiments/
+models/experiments/
+experiments/*.json
+!experiments/example.json
+
 # Local documentation
 docs/
 

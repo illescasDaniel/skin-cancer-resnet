@@ -23,6 +23,7 @@ dependencies = [
 [project.scripts]
 skin-cancer-train = "skin_cancer_resnet.train:main"
 skin-cancer-predict = "skin_cancer_resnet.predict:main"
+skin-cancer-experiment = "skin_cancer_resnet.experiment:main"
 
 [project.optional-dependencies]
 dev = [

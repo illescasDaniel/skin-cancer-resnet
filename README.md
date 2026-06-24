@@ -61,7 +61,7 @@ skin-cancer-resnet-transfer-learning/
 
 ## Setup
 
-Requires Python 3.10+ and a CUDA-capable GPU (optional; CPU works but is slower).
+Requires Python 3.10+. A GPU is optional; training and inference auto-select the best available device (CUDA, then Apple MPS, then CPU).
 
 ```bash
 python -m venv .venv
@@ -104,6 +104,55 @@ Or use the installed CLI:
 skin-cancer-train
 ```
 
+### Training hyperparameters
+
+Optimizer, scheduler, loss, learning rate, and related settings are grouped in `TrainingConfig` and exposed on the CLI:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--lr` | `1e-3` | Initial learning rate |
+| `--weight-decay` | `1e-4` | Adam weight decay |
+| `--optimizer` | `adam` | Optimizer type |
+| `--scheduler` | `cosine_annealing` | LR scheduler |
+| `--criterion` | `cross_entropy` | Loss function |
+| `--no-pretrained` | off | Skip ImageNet backbone weights |
+| `--device` | auto | Override device (`cuda`, `cuda:0`, `mps`, `cpu`) |
+
+Example with custom learning rate:
+
+```bash
+python -m skin_cancer_resnet.train --architecture resnet18 --lr 0.0001 --weight-decay 0.001
+```
+
+Full training settings are recorded in `results/{architecture}/metrics.json` under `training_config`.
+
+### Parallel experiments
+
+Run multiple training configurations in parallel from a JSON file:
+
+```bash
+skin-cancer-experiment --config experiments/example.json
+```
+
+Example config (`experiments/example.json`):
+
+```json
+{
+  "data_dir": "data",
+  "batch_size": 16,
+  "seed": 28,
+  "max_workers": 2,
+  "experiments": [
+    { "name": "resnet18-baseline", "architecture": "resnet18", "epochs": 15 },
+    { "name": "resnet18-low-lr", "architecture": "resnet18", "initial_lr": 0.0001 }
+  ]
+}
+```
+
+Top-level keys are shared defaults; each experiment can override any training or run setting. When omitted, outputs go to `results/experiments/{name}/` and checkpoints to `models/experiments/{name}.safetensors`. On multi-GPU machines, experiments are assigned round-robin across CUDA devices; on a single GPU use `"max_workers": 1` (sequential) to avoid OOM.
+
+> **Note:** `results/experiments/`, `models/experiments/`, and any `experiments/*.json` files other than `example.json` are git-ignored — sweep configs and their outputs are considered local artefacts.
+
 Training applies random augmentations (flips, rotations, color jitter) and evaluates on both train and test sets each epoch. Plots and metrics are saved to `results/{architecture}/`; the best-epoch weights are saved to `models/`.
 
 ## Inference
@@ -127,19 +176,16 @@ Output is one line per image with the predicted label and confidence, e.g. `beni
 Programmatic usage:
 
 ```python
-import torch
 from skin_cancer_resnet.architecture import Architecture
-from skin_cancer_resnet.checkpoint import load_checkpoint, remap_legacy_state_dict
+from skin_cancer_resnet.device import get_best_device
 from skin_cancer_resnet.model import Net
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = Net(architecture=Architecture.RESNET18, pretrained=False).to(device)
-state_dict = remap_legacy_state_dict(
-    load_checkpoint("models/resnet18_skin_cancer.safetensors", device),
-    Architecture.RESNET18,
+device = get_best_device()
+model = Net.from_checkpoint(
+    "models/resnet18_skin_cancer.safetensors",
+    device,
+    architecture=Architecture.RESNET18,
 )
-model.load_state_dict(state_dict, strict=False)
-model.eval()
 
 # inputs: batch of preprocessed images (N, 3, 224, 224)
 predictions = model.predict(inputs)
@@ -150,8 +196,8 @@ predictions = model.predict(inputs)
 
 - **Backbones:** ResNet18 or MobileNetV3-Small with ImageNet weights (`torchvision.models`)
 - **Classifier:** Single linear layer (512 or 1024 → 2), only trainable parameters
-- **Optimizer:** Adam (lr=1e-3, weight_decay=1e-4)
-- **Scheduler:** Cosine annealing over the training epochs
+- **Training config:** `TrainingConfig` controls optimizer (Adam), scheduler (cosine annealing), criterion (cross-entropy), learning rate, and weight decay
+- **Device:** `get_best_device()` selects CUDA → MPS → CPU
 - **Batch size:** 16
 - **Input size:** 224×224, ImageNet normalization
 

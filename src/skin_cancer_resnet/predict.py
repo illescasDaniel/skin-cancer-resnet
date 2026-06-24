@@ -6,7 +6,8 @@ import torch.nn.functional as F
 from PIL import Image
 
 from skin_cancer_resnet.architecture import Architecture, default_model_path
-from skin_cancer_resnet.checkpoint import CLASS_NAMES, load_checkpoint, remap_legacy_state_dict
+from skin_cancer_resnet.checkpoint import CLASS_NAMES
+from skin_cancer_resnet.device import get_best_device
 from skin_cancer_resnet.model import DEFAULT_BATCH_SIZE, Net, get_transforms
 
 
@@ -28,18 +29,6 @@ def collect_image_paths(paths: list[Path]) -> list[Path]:
 		else:
 			raise ValueError(f"Not a supported image file: {path}")
 	return image_paths
-
-
-def load_model(
-	model_path: Path,
-	device: torch.device,
-	architecture: Architecture | str = Architecture.RESNET18,
-) -> Net:
-	model = Net(architecture=architecture, pretrained=False).to(device)
-	state_dict = remap_legacy_state_dict(load_checkpoint(model_path, device), architecture)
-	model.load_state_dict(state_dict, strict=False)
-	model.eval()
-	return model
 
 
 def classify_images(
@@ -97,6 +86,12 @@ def parse_args() -> argparse.Namespace:
 		default=DEFAULT_BATCH_SIZE,
 		help="Batch size for inference.",
 	)
+	parser.add_argument(
+		"--device",
+		type=str,
+		default=None,
+		help="Device override (e.g. cuda, cuda:0, mps, cpu). Auto-selects when omitted.",
+	)
 	return parser.parse_args()
 
 
@@ -104,13 +99,13 @@ def main() -> None:
 	args = parse_args()
 	architecture = Architecture(args.architecture)
 	model_path = args.model_path or default_model_path(architecture)
-	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+	device = get_best_device(args.device)
 
 	if not model_path.exists():
 		raise SystemExit(f"Model not found: {model_path}")
 
 	image_paths = collect_image_paths(args.paths)
-	model = load_model(model_path, device, architecture=architecture)
+	model = Net.from_checkpoint(model_path, device, architecture=architecture)
 	results = classify_images(model, image_paths, device, args.batch_size)
 
 	for image_path, label, confidence in results:

@@ -2,6 +2,7 @@ from pathlib import Path
 
 from skin_cancer_resnet.architecture import Architecture, recommended_epochs, results_dir_for
 from skin_cancer_resnet.train import build_metrics
+from skin_cancer_resnet.training_config import TrainingConfig
 
 
 def test_results_dir_for() -> None:
@@ -16,8 +17,9 @@ def test_recommended_epochs() -> None:
 
 
 def test_build_metrics_records_best_epoch() -> None:
+	training_config = TrainingConfig(architecture=Architecture.MOBILENET_V3_SMALL)
 	metrics = build_metrics(
-		Architecture.MOBILENET_V3_SMALL,
+		training_config,
 		epochs=3,
 		loss_list=[0.5, 0.4, 0.3],
 		test_accuracy_list=[0.7, 0.8, 0.75],
@@ -27,6 +29,7 @@ def test_build_metrics_records_best_epoch() -> None:
 	)
 
 	assert metrics["architecture"] == "mobilenet_v3_small"
+	assert metrics["training_config"]["architecture"] == "mobilenet_v3_small"
 	assert metrics["best_epoch"] == 2
 	assert metrics["test_accuracy"] == 0.8
 	assert metrics["train_accuracy"] == 0.85
